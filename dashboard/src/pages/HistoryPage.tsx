@@ -78,6 +78,7 @@ export function HistoryPage() {
                 <TableHead>Message</TableHead>
                 <TableHead className="hidden sm:table-cell">Channel</TableHead>
                 <TableHead>Label</TableHead>
+                <TableHead>Category</TableHead>
                 <TableHead className="text-right">Confidence</TableHead>
                 <TableHead className="hidden md:table-cell">Timestamp</TableHead>
               </TableRow>
@@ -85,7 +86,7 @@ export function HistoryPage() {
             <TableBody>
               {rows.length === 0 ? (
                 <TableRow className="hover:bg-transparent">
-                  <TableCell colSpan={5} className="text-center text-sm text-zinc-500">
+                  <TableCell colSpan={6} className="text-center text-sm text-zinc-500">
                     No predictions yet. Run the classifier or inbox simulation.
                   </TableCell>
                 </TableRow>
@@ -108,6 +109,9 @@ export function HistoryPage() {
                       </TableCell>
                       <TableCell>
                         <Badge variant={spam ? 'spam' : 'ham'}>{row.label}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="default">{row.category ?? 'Unknown'}</Badge>
                       </TableCell>
                       <TableCell className="text-right tabular-nums text-zinc-200">
                         {(Number(row.confidence) * 100).toFixed(1)}%

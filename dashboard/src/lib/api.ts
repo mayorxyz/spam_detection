@@ -7,6 +7,7 @@ export type Channel = 'sms' | 'email' | 'social'
 export type PredictResponse = {
   label: 'SPAM' | 'HAM'
   confidence: number
+  category?: string | null
   breakdown: { nb: number; svm: number }
   latency_ms?: number
 }
@@ -15,6 +16,7 @@ export type HistoryRow = {
   text: string
   channel: string
   label: string
+  category?: string | null
   confidence: number
   timestamp: string
 }
