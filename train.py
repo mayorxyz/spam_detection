@@ -12,16 +12,23 @@ from preprocess import preprocess
 MODEL_DIR = 'models'
 
 def load_data():
+    # SMS
     sms = pd.read_csv('data/SMSSpamCollection', sep='\t', header=None, names=['label', 'text'])
     sms['label_bin'] = (sms['label'] == 'spam').astype(int)
     sms['channel'] = 'sms'
 
+    # Email
     email = pd.read_csv('data/email_spam_data.csv')
     email['label_bin'] = (email['label'] == 'spam').astype(int)
 
+    # Social
+    social = pd.read_csv('data/social_spam_data.csv')
+    social['label_bin'] = (social['label'] == 'spam').astype(int)
+
     df = pd.concat([
         sms[['text', 'channel', 'label_bin']],
-        email[['text', 'channel', 'label_bin']]
+        email[['text', 'channel', 'label_bin']],
+        social[['text', 'channel', 'label_bin']]
     ], ignore_index=True)
 
     df['clean'] = df.apply(lambda r: preprocess(r['text'], r['channel']), axis=1)
