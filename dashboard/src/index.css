@@ -1,0 +1,15 @@
+@import 'tailwindcss';
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply min-h-svh bg-zinc-950 font-sans text-zinc-100 antialiased;
+  }
+
+  #root {
+    @apply min-h-svh;
+  }
+}

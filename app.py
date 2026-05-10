@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response
 import joblib
 import time
 import sqlite3
@@ -7,6 +7,28 @@ import os
 from preprocess import preprocess
 
 app = Flask(__name__)
+
+# CORS: prefer flask-cors when installed; otherwise minimal headers for local dashboard dev.
+try:
+    from flask_cors import CORS
+
+    CORS(app, resources={r"/*": {"origins": "*"}})
+except ImportError:
+
+    def _cors(resp):
+        resp.headers["Access-Control-Allow-Origin"] = "*"
+        resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
+        resp.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+        return resp
+
+    @app.before_request
+    def _cors_preflight():
+        if request.method == "OPTIONS":
+            return _cors(Response("", status=204))
+
+    @app.after_request
+    def _cors_after(resp):
+        return _cors(resp)
 
 # Load models
 tfidf = joblib.load('models/tfidf.pkl')
