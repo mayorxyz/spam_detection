@@ -1,4 +1,5 @@
-from flask import Flask, request, jsonify, Response
+from flask import Flask, request, jsonify
+from flask_cors import CORS
 import joblib
 import time
 import sqlite3
@@ -7,36 +8,14 @@ import os
 from preprocess import preprocess
 
 app = Flask(__name__)
+CORS(app)
 
-# CORS: prefer flask-cors when installed; otherwise minimal headers for local dashboard dev.
-try:
-    from flask_cors import CORS
-
-    CORS(app, resources={r"/*": {"origins": "*"}})
-except ImportError:
-
-    def _cors(resp):
-        resp.headers["Access-Control-Allow-Origin"] = "*"
-        resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
-        resp.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
-        return resp
-
-    @app.before_request
-    def _cors_preflight():
-        if request.method == "OPTIONS":
-            return _cors(Response("", status=204))
-
-    @app.after_request
-    def _cors_after(resp):
-        return _cors(resp)
-
-# Load models
 tfidf = joblib.load('models/tfidf.pkl')
 nb    = joblib.load('models/nb.pkl')
 svm   = joblib.load('models/svm.pkl')
 
-# DB setup
 def init_db():
+    os.makedirs('logs', exist_ok=True)
     conn = sqlite3.connect('logs/predictions.db')
     conn.execute('''CREATE TABLE IF NOT EXISTS predictions (
         id TEXT, text TEXT, channel TEXT, label TEXT,
@@ -58,32 +37,26 @@ def predict():
     channel = data['channel']
     start   = time.time()
 
-    clean = preprocess(text, channel)
-    vec   = tfidf.transform([clean])
-
+    clean     = preprocess(text, channel)
+    vec       = tfidf.transform([clean])
     nb_score  = nb.predict_proba(vec)[0][1]
     svm_score = svm.predict_proba(vec)[0][1]
 
-    # Weighted ensemble (NB 40%, SVM 60% — DistilBERT added later)
     confidence = round(0.50 * nb_score + 0.50 * svm_score, 3)
-    label = 'SPAM' if confidence > 0.3 else 'HAM'
+    label      = 'SPAM' if confidence > 0.3 else 'HAM'
     latency    = round((time.time() - start) * 1000, 2)
 
-    # Log to DB
     conn = sqlite3.connect('logs/predictions.db')
     conn.execute(
-        'INSERT INTO predictions (id, text, channel, label, confidence, nb_score, svm_score, latency_ms) VALUES (?,?,?,?,?,?,?,?)',
-        (str(uuid.uuid4()), text[:500], channel, label,
-         confidence, round(nb_score, 3), round(svm_score, 3), latency))
+        'INSERT INTO predictions (id,text,channel,label,confidence,nb_score,svm_score,latency_ms) VALUES (?,?,?,?,?,?,?,?)',
+        (str(uuid.uuid4()), text[:500], channel, label, confidence, round(nb_score,3), round(svm_score,3), latency)
+    )
     conn.commit()
     conn.close()
 
-    return jsonify({
-        'label':      label,
-        'confidence': confidence,
-        'breakdown':  {'nb': round(nb_score, 3), 'svm': round(svm_score, 3)},
-        'latency_ms': latency
-    })
+    return jsonify({'label': label, 'confidence': confidence,
+                    'breakdown': {'nb': round(nb_score,3), 'svm': round(svm_score,3)},
+                    'latency_ms': latency})
 
 @app.route('/history', methods=['GET'])
 def history():
@@ -95,9 +68,20 @@ def history():
     return jsonify([{'text': r[0], 'channel': r[1], 'label': r[2],
                      'confidence': r[3], 'timestamp': r[4]} for r in rows])
 
+@app.route('/stats', methods=['GET'])
+def stats():
+    conn = sqlite3.connect('logs/predictions.db')
+    total  = conn.execute("SELECT COUNT(*) FROM predictions WHERE date(timestamp)=date('now')").fetchone()[0]
+    spam   = conn.execute("SELECT COUNT(*) FROM predictions WHERE label='SPAM' AND date(timestamp)=date('now')").fetchone()[0]
+    ham    = conn.execute("SELECT COUNT(*) FROM predictions WHERE label='HAM' AND date(timestamp)=date('now')").fetchone()[0]
+    avg    = conn.execute("SELECT AVG(confidence) FROM predictions WHERE date(timestamp)=date('now')").fetchone()[0]
+    conn.close()
+    return jsonify({'total_today': total, 'spam_today': spam, 'ham_today': ham,
+                    'avg_confidence': round(avg or 0, 3)})
+
 @app.route('/health', methods=['GET'])
 def health():
-    return jsonify({'status': 'ok'})
+    return jsonify({'status': 'ok', 'channels': ['sms', 'email', 'social']})
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
